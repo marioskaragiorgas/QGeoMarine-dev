@@ -1,0 +1,61 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Qt UI files (if generated)
+*.ui.py
+
+# Jupyter notebooks checkpoints
+.ipynb_checkpoints
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# VS Code settings
+.vscode/
+
+# PyInstaller
+dist/
+build/
+*.spec
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Project data/cache/output
+*.log
+*.bak
+*.tmp
+*.swp
+.cache/
+.qgm/
+.project_state.json
+
+# SQLite and data outputs
+*.db
+*.bin
+*.csv
+
+# Maps and folium output
+*.html
+*.geojson
+*.tif
+
+# Julia artifacts (if integrated)
+.julia/
+*.jl.cov
+*.jl.*~
+
+# JetBrains IDEs
+.idea/

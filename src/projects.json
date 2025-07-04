@@ -1,0 +1,47 @@
+[
+    {
+        "project_name": "Airgun",
+        "folder_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\Airgun",
+        "file_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\Airgun\\Project\\Airgun.qgm",
+        "latitude": "10694056.38",
+        "longitude": "1450347.91",
+        "coordinate_system": "UTM",
+        "EPSG CODE": "32616"
+    },
+    {
+        "project_name": "BoomerDataFromBrazil",
+        "folder_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\BoomerDataFromBrazil",
+        "file_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\BoomerDataFromBrazil\\Project\\BoomerDataFromBrazil.qgm",
+        "latitude": "",
+        "longitude": "",
+        "coordinate_system": "UTM",
+        "EPSG CODE": "32623"
+    },
+    {
+        "project_name": "ColocatedKlein",
+        "folder_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\ColocatedKlein",
+        "file_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\ColocatedKlein\\Project\\ColocatedKlein.qgm",
+        "latitude": "1111",
+        "longitude": "1152",
+        "coordinate_system": "UTM",
+        "EPSG CODE": "32619"
+    },
+    {
+        "project_name": "Sub-Buttom-ChenegaBay",
+        "folder_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\Sub-Buttom-ChenegaBay",
+        "file_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\Sub-Buttom-ChenegaBay\\Project\\Sub-Buttom-ChenegaBay.qgm",
+        "latitude": "60.2071600000",
+        "longitude": "-148.0117981667",
+        "coordinate_system": "UTM",
+        "EPSG CODE": "32606"
+    },
+    {
+        "project_name": "test",
+        "folder_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\test",
+        "file_path": "C:/Users/mario/Desktop/QGeoMarine/Projects\\test\\Project\\test.qgm",
+        "latitude": "29.4656520",
+        "longitude": "-87.5974850",
+        "coordinate_system": "UTM",
+        "EPSG CODE": "26716"
+    }
+]
