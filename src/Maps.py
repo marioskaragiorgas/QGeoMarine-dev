@@ -80,7 +80,7 @@ class MAPS:
         except Exception as e:
             raise Exception(f"Error, Failed to add the new tile layer: {e}")
     
-    def load_survey_lines(self, coordinates, dir, color="blue"):
+    def load_survey_lines(self, coordinates, dir, color="red"):
         """
         Loads survey lines onto the map using given coordinates and saves it as an HTML file.
         Args:
@@ -95,9 +95,8 @@ class MAPS:
        
         try:
             if not self.map:
-                center = [0, 0]  # Default center of the map
-                zoom = 2  # Default zoom level
-                self.map = folium.Map(location=center, zoom_start=zoom, tiles = "OpenStreetMap")
+                first_latlon = coordinates[0]
+                self.map = folium.Map(location=first_latlon, zoom_start=13)
             
             # Add survey lines to the map
             folium.PolyLine(locations=coordinates, color=color, weight=2.5).add_to(self.map)
@@ -111,6 +110,36 @@ class MAPS:
             return self.map, self.map_html
         except Exception as e:
             raise Exception(f"Error, Failed to load survey data: {e}")
+
+    def load_mag_lines(self, coordinates, dir, color="blue"):
+        
+        try:
+
+            # Determine map center using the first coordinate
+            first_latlon = list(coordinates.values())[0][0]
+            self.map = folium.Map(location=[first_latlon[1], first_latlon[0]], zoom_start=13)
+
+            # Add each line to the map
+            for line, coords in coordinates.items():
+                folium.PolyLine(locations=[(lat, lon) for lon, lat in coords],
+                                tooltip=f"Line {line}",
+                                color=color).add_to(self.map)
+
+            # Fit map bounds to all points
+            all_points = [pt for coords in coordinates.values() for pt in coords]
+            lats, lons = zip(*[(lat, lon) for lon, lat in all_points])
+            self.map.fit_bounds([[min(lats), min(lons)], [max(lats), max(lons)]])
+
+            # Define paths for map assets
+            print(f"output dir: {dir}")
+
+            # Save the map as an HTML file
+            self.map_html = os.path.join(dir, "default_map.html")
+            self.map.save(self.map_html)
+            return self.map, self.map_html
+        
+        except Exception as e:
+            raise Exception(f"Error, Failed to load magnetic survey data: {e}")
 
     def load_vector_data(self, file_path, dir):
         """

@@ -1140,6 +1140,180 @@ class WaveletWindowUI(QtWidgets.QDialog):
             if widget:
                 widget.deleteLater()
 
+class traceQCUI(QtWidgets.QDialog):
+    """
+    TraceQCUI
+    This class sets up the UI for a Trace Quality Control window, allowing users to inspect the tace data of a seismic section
+    and visualy see flaged traces (non normal, dead spiked clipped) and export the results as a report of the highlighted results
+    """
+
+    def __init__(self, parent=None):
+        """
+        Initialize the TraceQCUI.
+        :param parent: The parent widget for the dialog.
+        """
+
+        super().__init__(parent)
+        self.setWindowTitle("Trace Quality Control")
+
+        # Main Layout
+        self.main_layout = QtWidgets.QVBoxLayout()
+        from matplotlib import pyplot as plt
+        from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas, NavigationToolbar2QT as NavigationToolbar
+        self.figure = plt.figure() # Create a figure
+        plt.ion() # Set interactive mode on for matplotlib
+        self.canvas = FigureCanvas(self.figure())
+        self.ax = self.canvas.figure.add_subplot(111)
+        self.main_layout.addWidget(self.canvas)
+
+        self.info_label = QtWidgets.QLabel("Run QC to view flagged traces.")
+        self.main_layout.addWidget(self.info_label)
+
+        button_layout = QtWidgets.QHBoxLayout()
+
+        self.run_button = QtWidgets.QPushButton("Run Trace QC")
+        
+        button_layout.addWidget(self.run_button)
+
+        self.export_button = QtWidgets.QPushButton("Export Report")
+    
+        button_layout.addWidget(self.export_button)
+
+        self.main_layout.addLayout(button_layout)
+
+        self.report_area = QtWidgets.QTextEdit()
+        self.report_area.setReadOnly(True)
+        self.main_layout.addWidget(self.report_area)
+
+        # OK and Cancel Buttons
+        self.button_layout = QtWidgets.QHBoxLayout()
+        self.ok_button = QtWidgets.QPushButton("OK")
+        self.cancel_button = QtWidgets.QPushButton("Cancel")
+        self.button_layout.addWidget(self.ok_button)
+        self.button_layout.addWidget(self.cancel_button)
+        self.main_layout.addLayout(self.button_layout)
+
+        self.setLayout(self.main_layout)
+
+class TraceQCUI(QtWidgets.QDialog):
+    """
+    TraceQCUI
+    This class sets up the UI for a Trace Quality Control window, allowing users to inspect the trace data
+    of a seismic section and visually see flagged traces (dead, clipped, low-energy) and export the results
+    as a report.
+    """
+
+    def __init__(self, seismic_data=None, qc = None, sample_interval=None, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("Trace Quality Control")
+        self.resize(800, 600)
+
+        self.data = seismic_data
+        self.qc = qc
+        self.interval = sample_interval
+        self.qc_results = {}
+
+        self.main_layout = QtWidgets.QVBoxLayout()
+        self.setLayout(self.main_layout)
+
+        self.plot_widget = pg.PlotWidget()
+        self.plot_widget.setBackground('w')
+        self.plot_item = self.plot_widget.getPlotItem()
+        self.main_layout.addWidget(self.plot_widget)
+
+        self.main_layout.addWidget(self.plot_widget)
+
+        self.info_label = QtWidgets.QLabel("Run QC to view flagged traces.")
+        self.main_layout.addWidget(self.info_label)
+
+        button_layout = QtWidgets.QHBoxLayout()
+
+        self.run_button = QtWidgets.QPushButton("Run Trace QC")
+        button_layout.addWidget(self.run_button)
+
+        self.export_button = QtWidgets.QPushButton("Export Report")
+        button_layout.addWidget(self.export_button)
+
+        self.main_layout.addLayout(button_layout)
+
+        self.report_area = QtWidgets.QTextEdit()
+        self.report_area.setReadOnly(True)
+        self.main_layout.addWidget(self.report_area)
+
+        self.button_layout = QtWidgets.QHBoxLayout()
+        self.ok_button = QtWidgets.QPushButton("OK")
+        self.cancel_button = QtWidgets.QPushButton("Cancel")
+        self.button_layout.addWidget(self.ok_button)
+        self.button_layout.addWidget(self.cancel_button)
+        self.main_layout.addLayout(self.button_layout)
+
+        self.ok_button.clicked.connect(self.accept)
+        self.cancel_button.clicked.connect(self.reject)
+        self.run_button.clicked.connect(self.run_qc)
+        self.export_button.clicked.connect(self.export_report)
+
+    def run_qc(self):
+        if self.data is None:
+            self.info_label.setText("Error: No data loaded.")
+            return
+        self.qc_results = self.qc.run_all_checks(self.data)
+        self.display_results()
+
+    def display_results(self):
+        import numpy as np
+
+        self.plot_item.clear()
+        n_traces, n_samples = self.data.shape
+        flagged = set(self.qc_results['dead'] + self.qc_results['clipped'] + self.qc_results['low_energy'])
+        time_axis = np.arange(n_samples) * self.interval  # time in seconds
+        scale = 10  # amplitude scaling factor
+
+        self.plot_item.clear()
+        n_traces, n_samples = self.data.shape
+        flagged = set(self.qc_results['dead'] + self.qc_results['clipped'] + self.qc_results['low_energy'])
+        time_axis = np.arange(n_samples) * self.interval
+        scale = 10  # amplitude scaling factor
+
+        X = []
+        Y = []
+
+        for i in range(n_traces):
+            trace = self.data[i]
+            x = i + trace * scale
+            y = time_axis
+            X.extend(x.tolist() + [np.nan])
+            Y.extend(y.tolist() + [np.nan])
+
+        self.plot_item.plot(X, Y, pen=pg.mkPen(color='k'))
+
+        self.plot_item.setTitle("Seismic Wiggle Plot with Flagged QC Issues")
+        self.plot_item.setLabel('bottom', 'Trace Number')
+        self.plot_item.setLabel('left', 'Time (ms)')
+        self.plot_item.invertY(True)  # standard seismic view
+        self.plot_item.getViewBox().setDefaultPadding(0.05)
+
+        summary = (f"Dead Traces: {len(self.qc_results['dead'])}\n"
+                f"Clipped Traces: {len(self.qc_results['clipped'])}\n"
+                f"Low Energy Traces: {len(self.qc_results['low_energy'])}\n")
+        self.report_area.setText(summary)
+        self.info_label.setText("QC complete. Flagged traces shown in red.")
+
+
+    def export_report(self):
+        if not self.qc_results:
+            self.info_label.setText("Run QC before exporting report.")
+            return
+
+        filename, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save QC Report", "trace_qc_report.txt")
+        if filename:
+            with open(filename, 'w') as f:
+                f.write("Trace QC Report\n")
+                f.write("================\n\n")
+                for key, indices in self.qc_results.items():
+                    f.write(f"{key.title()} Traces ({len(indices)}):\n")
+                    f.write(", ".join(map(str, indices)) + "\n\n")
+            self.info_label.setText(f"Report saved to: {filename}")
+
 # UI class for the Magnetic Data Editor
 class Maggy_editor_UI(object):
     """
@@ -1229,6 +1403,11 @@ class Maggy_editor_UI(object):
         self.channelmath_action.triggered.connect(MaggyEditor.create_column)
         self.delcolumn_action = self.DataAnalysis.addAction("Delete Column")
         self.delcolumn_action.triggered.connect(MaggyEditor.delete_column)
+        self.grid_action = self.DataAnalysis.addAction("Grid Data")
+        self.grid_action.triggered.connect(MaggyEditor.grid_data)
+        self.distance_action = self.DataAnalysis.addAction("Compute Distance Channel")
+        self.distance_action.triggered.connect(MaggyEditor.compute_distance_channel)
+
         
         MaggyEditor.setMenuBar(self.menuBar)
 
@@ -1741,7 +1920,79 @@ class Maggy_editor_UI(object):
 
         def get_selected_column(self):
             """Return the selected column name."""
-            return self.column_combo.currentText()
+            return self.column_combo.currentText()   
+    
+    class GriddingWindow(QtWidgets.QDialog):
+        def __init__(self, dataframe, parent=None):
+            super().__init__(parent)
+            self.setWindowTitle("Gridding")
+            self.setMinimumSize(1000, 600)
+            self.df = dataframe
+
+            # MAIN LAYOUT
+            main_layout = QtWidgets.QHBoxLayout(self)
+
+            # LEFT PANEL: Input controls
+            self.left_panel = QtWidgets.QWidget()
+            self.left_layout = QtWidgets.QVBoxLayout(self.left_panel)
+
+            # Column selectors
+            self.x_combo = QtWidgets.QComboBox()
+            self.x_combo.addItems(self.df.columns)
+            self.y_combo = QtWidgets.QComboBox()
+            self.y_combo.addItems(self.df.columns)
+            self.z_combo = QtWidgets.QComboBox()
+            self.z_combo.addItems(self.df.columns)
+
+            self.left_layout.addWidget(QtWidgets.QLabel("X column:"))
+            self.left_layout.addWidget(self.x_combo)
+            self.left_layout.addWidget(QtWidgets.QLabel("Y column:"))
+            self.left_layout.addWidget(self.y_combo)
+            self.left_layout.addWidget(QtWidgets.QLabel("Z column (value):"))
+            self.left_layout.addWidget(self.z_combo)
+
+            # Gridding method
+            self.method_combo = QtWidgets.QComboBox()
+            self.method_combo.addItems(["nearest", "linear", "cubic"])
+            self.left_layout.addWidget(QtWidgets.QLabel("Interpolation method:"))
+            self.left_layout.addWidget(self.method_combo)
+
+            # Resolution
+            self.res_spin = QtWidgets.QSpinBox()
+            self.res_spin.setRange(1, 2000)
+            self.res_spin.setValue(50)
+            self.left_layout.addWidget(QtWidgets.QLabel("Grid resolution:"))
+            self.left_layout.addWidget(self.res_spin)
+
+            # colormap
+            self.colormap_combo = QtWidgets.QComboBox()
+            self.colormap_combo.addItems(["gray", "hot", "viridis", "plasma", "magma", "inferno", "cividis", "jet"])
+            self.left_layout.addWidget(QtWidgets.QLabel("Colormap:"))
+            self.left_layout.addWidget(self.colormap_combo)
+
+            # Export button
+            self.export = QtWidgets.QPushButton("Export Grid...")
+            self.left_layout.addWidget(self.export)
+
+            self.left_layout.addStretch()
+            main_layout.addWidget(self.left_panel, stretch=1)
+
+            # RIGHT PANEL: Plot preview
+            self.plot_widget = pg.PlotWidget(title="Grid Preview")
+            self.img_item = pg.ImageItem()
+            self.plot_widget.addItem(self.img_item)
+            self.plot_widget.setLabel("bottom", "X")
+            self.plot_widget.setLabel("left", "Y")
+            self.plot_widget.invertY(True)
+            main_layout.addWidget(self.plot_widget, stretch=4)
+
+            # Bottom OK/Cancel
+            self.button_box = QtWidgets.QDialogButtonBox(
+                QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel
+            )
+            self.button_box.accepted.connect(self.accept)
+            self.button_box.rejected.connect(self.reject)
+            self.left_layout.addWidget(self.button_box)
 
     def retranslateUi(self, MaggyEditor):
         """Set the text for all UI elements."""

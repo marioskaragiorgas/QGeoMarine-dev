@@ -24,8 +24,9 @@ from Gains import agc_gain, tvg_gain, constant_gain
 from Plots import  plot_seismic_image, plot_spectrogram, plot_wavelet_transform
 from Trace_analysis import trace_periodogram, trace_welch_periodogram, trace_wavelet_transform, trace_spectrogram, instantaneous_attributes
 from Deconvolution import Wavelets, Deconvolution
+from trace_qc import TraceQC
 from Interpretation import SeismicInterpretationWindow
-from UI import bandass_filter_UI, highpass_filter_UI, lowpass_filter_UI, TraceAnalysisWindowUI, WaveletWindowUI 
+from UI import bandass_filter_UI, highpass_filter_UI, lowpass_filter_UI, TraceAnalysisWindowUI, WaveletWindowUI, TraceQCUI
 
 import logging
 logging.basicConfig(
@@ -326,6 +327,8 @@ class SeismicEditor(QMainWindow):
 
         # Preprocessing menu
         preprocessing_menu = self.menu_bar.addMenu("Pre-processing/Quality Control (QC)")
+        # QC action
+        preprocessing_menu.addAction(self.create_action("Trace QC", self.apply_trace_qc))
         # Mute submenu
         mute_submenu = preprocessing_menu.addMenu("Trace Muting")
         mute_functions_submenu = mute_submenu.addMenu("Mutting Functions")
@@ -1796,6 +1799,13 @@ class SeismicEditor(QMainWindow):
                 sample_rate = self.sample_rate
             )
         self.interpretation_window.show()
+
+    @pyqtSlot()
+    def apply_trace_qc(self):
+        dialog = TraceQCUI(seismic_data = self.processed_data if self.processed_data is not None else self.data,
+                           qc = TraceQC(),
+                           sample_interval=self.sample_interval*1e3)
+        dialog.exec()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

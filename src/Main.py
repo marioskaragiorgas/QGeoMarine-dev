@@ -30,7 +30,7 @@ import pyproj
 import pyproj.database
 from UI import Ui_IntroWindow
 from datahandling import SEISMIC, MAGGY
-from Navigation import NavigationFromTowFish, NavigationFromShip
+from Navigation import NavigationFromTowFish, NavigationFromShip, NavigationFromFile
 from Seismic_Editor import SeismicEditor
 from Maggy_Editor import MaggyEditor
 from Maps import MAPS
@@ -890,18 +890,21 @@ class QGeoMarine(QtWidgets.QMainWindow):
                 self.table.setItem(row, col, QtWidgets.QTableWidgetItem(str(mag_df.iat[row, col]))) 
         layout.addWidget(self.table)
 
-        # Add a combo box to select the line column
-        layout.addWidget(QtWidgets.QLabel("Select Line Column:"))
-        self.combo_box = QtWidgets.QComboBox()
-        self.combo_box.addItems(mag_df.columns)
-        layout.addWidget(self.combo_box)
-        
-        # Add checkboxes for navigation source
-        self.checkbox_towfish = QtWidgets.QCheckBox("Select Navigation from Towfish")
-        self.checkbox_ship = QtWidgets.QCheckBox("Select Navigation from Ship")
-        layout.addWidget(self.checkbox_towfish)
-        layout.addWidget(self.checkbox_ship)
+        # Add a combo box to select the line column, and the X and Y coordinates
+        layout.addWidget(QtWidgets.QLabel("Select Line name Column:"))
+        self.line_combo_box = QtWidgets.QComboBox()
+        self.line_combo_box.addItems(mag_df.columns)
+        layout.addWidget(self.line_combo_box)
 
+        layout.addWidget(QtWidgets.QLabel("Select Lattitude Column:"))
+        self.lat_combo_box = QtWidgets.QComboBox()
+        self.lat_combo_box.addItems(mag_df.columns)
+        layout.addWidget(self.lat_combo_box)
+
+        layout.addWidget(QtWidgets.QLabel("Select Longitude Column:"))
+        self.lon_combo_box = QtWidgets.QComboBox()
+        self.lon_combo_box.addItems(mag_df.columns)
+        layout.addWidget(self.lon_combo_box)
 
         button_box = QtWidgets.QDialogButtonBox(QtWidgets.QDialogButtonBox.StandardButton.Ok | QtWidgets.QDialogButtonBox.StandardButton.Cancel)
         layout.addWidget(button_box)
@@ -911,12 +914,17 @@ class QGeoMarine(QtWidgets.QMainWindow):
         button_box.rejected.connect(dialog.reject)
 
         if dialog.exec() == QtWidgets.QDialog.DialogCode.Accepted:
-            line_col_name = self.combo_box.currentText()
+            line_col_name = self.line_combo_box.currentText()
+            lat_col_name = self.lat_combo_box.currentText()
+            lon_col_name = self.lon_combo_box.currentText()
+
             logging.info(f"Selected Line Column: {line_col_name}")
+            logging.info(f"Selected Lattitude Column: {lat_col_name}")
+            logging.info(f"Selected Longitude Column: {lon_col_name}")
 
             try:
                 for file_path in file_paths:
-                    self.load_mag_file(file_path, line_col_name)
+                    self.load_mag_file(file_path, line_col_name, lon_col_name, lat_col_name)
             except Exception as e:
                 self.statusbar.showMessage(f"Error loading data: {e}")
                 logging.error(f"Failed to load MAG file: {e}")
@@ -945,7 +953,7 @@ class QGeoMarine(QtWidgets.QMainWindow):
         The user can select multiple raster files to import.    
         """
         # Open file dialog to select raster files
-        file_paths, _ = QtWidgets.QFileDialog.getOpenFileNames(self, "Import Maps", "", "Raster Files (*.tif *.jpg *.png)")
+        file_paths, _ = QtWidgets.QFileDialog.getOpenFileNames(self, "Import Maps", "", "Raster Files (*.geotiff *.tiff *.tif *.jpg *.png)")
         
         if not file_paths:
             return
@@ -1091,11 +1099,10 @@ class QGeoMarine(QtWidgets.QMainWindow):
             self.show_error('Error', f"Failed to load SEG-Y file {file_path}: {e}")
 
 
-    def load_mag_file(self, file_path, line_col_name):
+    def load_mag_file(self, file_path, line_col_name, lon_col_name, lat_col_name):
         """
         Load a magnetic data file using MAGGY and store its metadata in a database.
         The magnetic data is processed and stored in a database file.
-        The user can select navigation source from Towfish or Ship.
         """
 
         mag_db_filepath = os.path.join(self.project_data.get('folder_path'), 'magnetics', os.path.basename(file_path)[:-4] + '.db')
@@ -1111,15 +1118,37 @@ class QGeoMarine(QtWidgets.QMainWindow):
             
             self.statusbar.showMessage(f"Loaded magnetic data from {file_path}, and stored to {mag_db_filepath} database.")
             QtWidgets.QMessageBox.information(self, "Data Loaded", f"Loaded magnetic data from {file_path} and stored to {mag_db_filepath} database.")
-            self.update_treeview(file_path, filetype='mag')
+            #self.update_treeview(file_path, filetype='mag')
 
-            if self.checkbox_towfish.isChecked():
-                self.load_towfish_navigation(file_path)
-            elif self.checkbox_ship.isChecked():
-                self.load_ship_navigation(file_path)
-            else:
-                QtWidgets.QMessageBox.warning(self, "Navigation Source not selected", "Please select a navigation source.")
-                pass
+            navigation = NavigationFromFile()
+            espg = str(self.project_data.get('EPSG CODE'))
+            
+            # Load and transform coordinates
+            mag_coords = navigation.load_navigation_data(
+                file_path=file_path,
+                line_col=line_col_name,
+                x_col=lon_col_name,
+                y_col=lat_col_name,
+                input_epsg=espg
+            )
+
+            print(mag_coords)
+            # Define paths for map assets
+            output_dir = os.path.join(self.project_data.get('folder_path'), "maps")
+            print(f"output dir: {output_dir}")
+
+            # Update the map
+            self.map, self.map_html = self.map_handler.load_mag_lines(coordinates=mag_coords, dir=output_dir)
+                
+            # Enable QWebEngineView JavaScript and local file access
+            self.web_view.settings().setAttribute(QtWebEngineCore.QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
+            self.web_view.settings().setAttribute(QtWebEngineCore.QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
+            self.web_view.settings().setAttribute(QtWebEngineCore.QWebEngineSettings.WebAttribute.LocalContentCanAccessRemoteUrls, True)
+
+            # Load the map in the QWebEngineView
+            self.web_view.setUrl(QtCore.QUrl.fromLocalFile(self.map_html))
+            print(f"Map saved and loaded at: {self.map_html}")
+                                
         except Exception as e:
             self.statusbar.showMessage(f"Error loading file {file_path}: {e}")
             logging.error(f"Failed to load MAG file {file_path}: {e}")
@@ -1141,7 +1170,7 @@ class QGeoMarine(QtWidgets.QMainWindow):
             print(f"Map HTML saved at: {self.map_html}")
 
             self.statusbar.showMessage(f"Loaded data from {file_path}")
-            self.update_treeview(file_path, n_samples=None, filetype=any)
+            self.update_treeview(file_path=file_path, db_filepath=file_path, n_samples=None, filetype='map')
             # Enable QWebEngineView JavaScript and local file access
             self.web_view.settings().setAttribute(QtWebEngineCore.QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
             self.web_view.settings().setAttribute(QtWebEngineCore.QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
@@ -1169,7 +1198,8 @@ class QGeoMarine(QtWidgets.QMainWindow):
             print(f"output dir: {output_dir}")
             self.map, self.map_html = self.map_handler.load_vector_data(file_path, output_dir)
             self.statusbar.showMessage(f"Loaded data from {file_path}")
-            self.update_treeview(file_path, n_samples=None, filetype=any)
+            self.update_treeview(file_path=file_path, db_filepath=file_path, n_samples=None, filetype='vector')
+
             # Enable QWebEngineView JavaScript and local file access
             self.web_view.settings().setAttribute(QtWebEngineCore.QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
             self.web_view.settings().setAttribute(QtWebEngineCore.QWebEngineSettings.WebAttribute.LocalContentCanAccessFileUrls, True)
@@ -1251,7 +1281,7 @@ class QGeoMarine(QtWidgets.QMainWindow):
         elif item.parent() == self.treeview_root_mag:
             file_path = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
             if file_path:
-                self.mag_edit = MaggyEditor(maggy_file_path=None, db_file_path=file_path)
+                self.mag_edit = MaggyEditor(maggy_file_path=None, db_file_path=file_path, project_data =self.project_data)
                 self.mag_edit.show()
 
     def close_file(self, item):
@@ -1281,8 +1311,8 @@ class QGeoMarine(QtWidgets.QMainWindow):
             self.sbp_coords = nav_towfish.load_Nav_data_from_segyfile(segy_file_path)
 
             # Retrieve the EPSG code from project data and create a transformer if necessary
-            epsg_code = self.project_data.get("EPSG CODE", "4326")
-            transformer = None
+            epsg_code = str(self.project_data.get("EPSG CODE"))
+
             if epsg_code != "4326":
                 transformer = pyproj.Transformer.from_crs(f"EPSG:{epsg_code}", "EPSG:4326", always_xy=True)
 
@@ -1326,6 +1356,7 @@ class QGeoMarine(QtWidgets.QMainWindow):
         if coordinates:
             # Store the coordinates in active seismic lines
             self.active_seismic_lines[file_id] = coordinates
+            
             # Define paths for map assets
             output_dir = os.path.join(self.project_data.get('folder_path'), "maps")
             print(f"output dir: {output_dir}")
@@ -1441,7 +1472,7 @@ class QGeoMarine(QtWidgets.QMainWindow):
         """
 
         if not hasattr(self, 'Maggy Editor') or self.mag_edit is None:
-            self.mag_edit = MaggyEditor(mag_filepath, db_file_path=None)
+            self.mag_edit = MaggyEditor(mag_filepath, db_file_path=None, project_data = self.project_data)
         self.mag_edit.show()
 
 if __name__ == "__main__":

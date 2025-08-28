@@ -55,6 +55,7 @@ import numpy as np
 import pandas as pd
 import segyio
 from matplotlib import pyplot as plt
+from utils import detect_delimiter, transform_coords_to_WGS84
 
 class NavigationFromTowFish:
     """
@@ -441,3 +442,38 @@ class NavigationFromShip:
         plt.legend()
         plt.grid()
         plt.show()
+
+class NavigationFromFile:
+
+    def __init__(self):
+        self.coords_data = {} 
+        self.file_path = None
+        
+    def load_navigation_data(self, file_path, line_col, x_col, y_col, input_epsg):
+        """
+        Load and transform coordinates grouped by line.
+        """
+        try:
+            self.file_path = file_path
+
+            if str(file_path).endswith((".csv", ".txt")):
+                delimiter = detect_delimiter(file_path)
+                df = pd.read_csv(file_path, delimiter=delimiter)
+            elif str(file_path).endswith((".xls", ".xlsx")):
+                df = pd.read_excel(file_path, engine='openpyxl')
+            else:
+                raise ValueError("Unsupported file format")
+
+            # EPSG to WGS84
+            transformer = transform_coords_to_WGS84(input_epsg)
+
+            # Group by line and store transformed coordinates
+            grouped = df.groupby(line_col)
+            self.coords_data = {
+                 line: [transformer.transform(x, y) for x, y in zip(group[x_col], group[y_col])]
+                 for line, group in grouped
+            }
+
+            return self.coords_data
+        except Exception as e:
+            raise Exception(f"Error loading navigation from {file_path}: {e}")

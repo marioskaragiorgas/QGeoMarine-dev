@@ -23,6 +23,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtCore import Qt, QSortFilterProxyModel
 from UI import Maggy_editor_UI  
+from Grids import grid
 
 logging.basicConfig(
     level=logging.DEBUG, 
@@ -61,7 +62,7 @@ class MaggyEditor(QtWidgets.QMainWindow):
         closeEvent(event): Handles application close events.
     """
 
-    def __init__(self, maggy_file_path, db_file_path, parent=None):
+    def __init__(self, maggy_file_path, db_file_path, project_data, parent=None):
         """
         Initializes the MaggyEditor with the given file paths and sets up the UI.
         Args:
@@ -77,6 +78,10 @@ class MaggyEditor(QtWidgets.QMainWindow):
         self.db_file_path = db_file_path
         self.dataFrame = None
         self.table_names = []
+        self.project_data = project_data
+        self.conn = sqlite3.connect(self.db_file_path)
+        self.current_line = None
+
         
         # Set the LineSelector combobox
         self.lineSelector = self.ui.lineSelection
@@ -136,6 +141,7 @@ class MaggyEditor(QtWidgets.QMainWindow):
             return
 
         try:
+            self.current_line = selected_table
             conn = sqlite3.connect(self.db_file_path)
             query = f"SELECT * FROM {selected_table}"
             self.dataFrame = pd.read_sql_query(query, conn)
@@ -524,7 +530,163 @@ class MaggyEditor(QtWidgets.QMainWindow):
         except sqlite3.Error as e:
             QtWidgets.QMessageBox.critical(self, "Database Error", str(e))
 
+    
+    def grid_data(self):
+        
+        if self.dataFrame is None:
+            QtWidgets.QMessageBox.warning(self, "No Data", "Please load a table first.")
+            return
+
+        dialog = self.ui.GriddingWindow(self.dataFrame, self)
+        
+        # Connect signals to your logic functions
+        dialog.x_combo.currentIndexChanged.connect(lambda: self.update_grid(dialog))
+        dialog.y_combo.currentIndexChanged.connect(lambda: self.update_grid(dialog))
+        dialog.z_combo.currentIndexChanged.connect(lambda: self.update_grid(dialog))
+        dialog.method_combo.currentIndexChanged.connect(lambda: self.update_grid(dialog))
+        dialog.res_spin.valueChanged.connect(lambda: self.update_grid(dialog))
+        dialog.colormap_combo.currentIndexChanged.connect(lambda: self.apply_colormap(dialog))
+
+        dialog.export.clicked.connect(lambda: self.export_grid(dialog))
+
+        # Initial render
+        self.update_grid(dialog)
+
+        dialog.exec()
+        
+    def update_grid(self, dialog):
+        try:
+            x = dialog.df[dialog.x_combo.currentText()]
+            y = dialog.df[dialog.y_combo.currentText()]
+            z = dialog.df[dialog.z_combo.currentText()]
+            method = dialog.method_combo.currentText()
+            res = dialog.res_spin.value()
+
+            gx, gy, gz, xi, yi = grid(x, y, z, method, res)
+
+            dialog.img_item.setImage(gz.T, autoLevels=True)
+            dialog.img_item.setRect(QtCore.QRectF(xi.min(), yi.min(), xi.ptp(), yi.ptp()))
+
+            # Store if needed
+            dialog.grid_x, dialog.grid_y, dialog.grid_z = gx, gy, gz
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(dialog, "Error", f"Failed to update grid:\n{e}")
+
+    def apply_colormap(self, dialog):
+        import matplotlib.pyplot as plt
+        from matplotlib import cm
+        import numpy as np
+
+        colormap_name = dialog.colormap_combo.currentText()
+        cmap = cm.get_cmap(colormap_name)
+
+        # Convert colormap to 256 RGB values (0-255)
+        lut = (cmap(np.linspace(0, 1, 256))[:, :3] * 255).astype(np.uint8)
+        dialog.img_item.setLookupTable(lut)
+    
+    def export_grid(self, dialog):
+        import pandas as pd
+        import numpy as np
+        import os
+
+        if not hasattr(dialog, 'grid_z'):
+            QtWidgets.QMessageBox.warning(dialog, "No Grid", "Please generate the grid first.")
+            return
+
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            dialog,
+            "Export Grid",
+            "",
+            "CSV Files (*.csv);;XYZ Files (*.xyz);;Text Files (*.txt);;AscII Files (*.asc *.ascii *.asc2);;Raster Files (*.geotiff *.tif *.tiff);;All Files (*)"
+        )
+        if not path:
+            return
+
+        # Get data
+        gx, gy, gz = dialog.grid_x, dialog.grid_y, dialog.grid_z
+        ext = os.path.splitext(path)[-1].lower()
+
+        try:
+            if ext in [".csv", ".txt"]:
+                df = pd.DataFrame({"X": gx.ravel(), "Y": gy.ravel(), "Z": gz.ravel()})
+                df.to_csv(path, index=False, sep=',' if ext == '.csv' else '\t')
+
+            elif ext in [".xyz", ".asc", ".ascii", ".asc2"]:
+                np.savetxt(path, np.c_[gx.ravel(), gy.ravel(), gz.ravel()], fmt="%.6f", delimiter=' ')
+
+            elif ext in [".geotiff", ".tif", ".tiff"]:
+                import rasterio
+                from rasterio.transform import from_origin
+
+                # Estimate pixel size
+                dx = (gx[0, 1] - gx[0, 0]) if gx.shape[1] > 1 else 1
+                dy = (gy[1, 0] - gy[0, 0]) if gy.shape[0] > 1 else 1
+
+                transform = from_origin(gx[0, 0], gy[0, 0], dx, dy)
+                epsg = str(self.project_data.get('EPSG CODE'))
+                new_dataset = rasterio.open(
+                    path,
+                    'w',
+                    driver='GTiff',
+                    height=gz.shape[0],
+                    width=gz.shape[1],
+                    count=1,
+                    dtype=gz.dtype,
+                    crs=f'EPSG:{epsg}',
+                    transform=transform
+                )
+                new_dataset.write(gz, 1)
+                new_dataset.close()
+
+            else:
+                QtWidgets.QMessageBox.warning(dialog, "Unknown Format", f"Unsupported export format: {ext}")
+                return
+
+            QtWidgets.QMessageBox.information(dialog, "Success", f"Grid exported to:\n{path}")
+        
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(dialog, "Export Error", str(e))
+
+    def compute_distance_channel(self):
+        try:
+            if self.current_line is None:
+                QtWidgets.QMessageBox.warning(self, "No Line Selected", "Please select a magnetic line first.")
+                return
+            
+            # Get X and Y columns
+            columns = self.dataFrame.columns.tolist()
+            x_col, ok1 = QtWidgets.QInputDialog.getItem(self, "X Column", "Select X coordinate column:", columns, editable=False)
+            if not ok1: return
+            y_col, ok2 = QtWidgets.QInputDialog.getItem(self, "Y Column", "Select Y coordinate column:", columns, editable=False)
+            if not ok2: return
+
+            # Compute distance
+            import numpy as np
+            x = self.dataFrame[x_col].astype(float).to_numpy()
+            y = self.dataFrame[y_col].astype(float).to_numpy()
+            dx = np.diff(x, prepend=x[0])
+            dy = np.diff(y, prepend=y[0])
+            d = np.sqrt(dx**2 + dy**2)
+            self.dataFrame['Distance'] = np.cumsum(d)
+
+            # Update DB
+            self.dataFrame.to_sql(self.current_line, self.conn, if_exists='replace', index=False)
+
+            # Refresh table
+            self.load_table_to_view(self.current_line)
+            
+            QtWidgets.QMessageBox.information(self, "Success", "Distance channel computed and added as 'Distance'.")
+
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "Error", f"Failed to compute distance: {str(e)}")
+    
+    def load_table_to_view(self, table_name):
+        self.lineSelector.setCurrentText(table_name)
+        self.load_selected_table()
+    
     def closeEvent(self, event):
+        if self.conn:
+            self.conn.close()
         logging.info("Closing application.")
         event.accept()
 
