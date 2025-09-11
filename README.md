@@ -98,12 +98,12 @@ Future releases of **QGeoMarine** will integrate machine learning models to enha
 
 ---
 
-## 🔧 Installation
+## 🔧 Installation in developement/editable mode 
 
 ```bash
 git clone https://github.com/marioskaragiorgas/qgeomarine.git
 cd qgeomarine
-pip install -r requirements.txt
+pip install -e .
 ```
 
 Typical requirements:
@@ -132,22 +132,23 @@ pip install julia
 
 ## 🖥️ Usage
 
-1. **Run the application:**
+1. **Run the application**
+2. Open a terminal and type:
    ```bash
-   python Main.py
+   qgeomarine
    ```
 
-2. **Start a new project** or open an existing `.qgm` QGeoMarine project file.
+3. **Start a new project** or open an existing `.qgm` QGeoMarine project file.
 
-3. **Load SEG-Y or magnetic files** via the treeview.
+4. **Load SEG-Y or magnetic files** via the treeview.
 
-4. **Apply filters, gain corrections, mutes, or trace analysis** using the context menu or toolbar.
+5. **Apply filters, gain corrections, mutes, or trace analysis** using the context menu or toolbar.
 
-5. **Use map view** to visualize navigation and seismic lines.
+6. **Use map view** to visualize navigation and seismic lines.
 
-6. **Use the Maggy Editor** to filter, plot, or transform magnetic data.
+7. **Use the Maggy Editor** to filter, plot, or transform magnetic data.
 
-7. **Pick horizons** using the seismic interpretation GUI.
+8. **Pick horizons** using the seismic interpretation GUI.
 
 ---
 
