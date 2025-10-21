@@ -29,22 +29,83 @@ Designed for researchers, students, and professionals in marine geoscience, QGeo
 
 ## 🧱 Application Structure
 
-| Module                | Purpose |
-|------------------------|---------|
-| `Main.py`             | Core launcher and project workspace management |
-| `UI.py`               | PyQt6 UI classes (Intro screen, dialogs, editors). All UI classes need to be migrated here |
-| `datahandling.py`     | Seismic/magnetic data I/O, SQLite integration |
-| `Navigation.py`       | Ship GPS and towfish position calculators |
-| `Gains.py`            | AGC, TVG, constant gain functions for signal enhancement |
-| `Filters.py`          | Methods for signal filtering analysis |
-| `Mute.py`             | Manual and automatic trace muting |
-| `Deconvolution.py`    | Modular signal deconvolution methods (e.g., Predictive, Spiking Deconvolution) |
-| `Trace_analysis.py`   | Frequency and time-frequency trace analytics |
-| `Plots.py`            | Modular Matplotlib-based plotting functions |
-| `Interpretation.py`   | Seismic GUI for horizon picking and annotation. Future plans for deep learning modules (CNNs) for geological feature extraction |
-| `Maggy_Editor.py`     | Magnetic data visual editor, filters, channel math. Future plans for grid generation and AI modules for magnetic anomally detection |
-| `Maps.py`             | Raster/vector GIS overlays, interactive survey line mapping |
-| `Seismic_Editor.py`   | GUI for seismic data editing, plotting, interpretation |
+*Source code application modules structure*
+```
+QGeoMarine-dev/
+├─ src/
+│  └─ qgeomarine/
+│     ├─ core/                        # High-level app logic & domain workflows
+│     │  ├─ interpretation/           # Seismic interpretation tools (GUI)
+│     │  │  ├─ __init__.py
+│     │  │  └─ interpretation.py
+│     │  ├─ maps/                     # Mapping & grids
+│     │  │  ├─ __init__.py
+│     │  │  ├─ grids.py
+│     │  │  └─ maps.py
+│     │  ├─ navigation/               # Towfish/ship navigation processing
+│     │  │  ├─ __init__.py
+│     │  │  └─ navigation.py
+│     │  ├─ processing/               # Seismic/SSS processing pipelines
+│     │  │  ├─ __init__.py
+│     │  │  ├─ sss_processing.py
+│     │  │  ├─ trace_analysis.py
+│     │  │  └─ trace_qc.py
+│     │  └─ __init__.py
+│     │
+│     ├─ signals/                     # Signal-processing primitives
+│     │  ├─ __init__.py
+│     │  ├─ deconvolution.py          # Spiking/predictive/Wiener/sparse
+│     │  ├─ filters.py                # IIR/FIR/Fourier/Wavelet
+│     │  ├─ gains.py                  # AGC/TVG/constant
+│     │  └─ mute.py                   # Top/bottom/offset/time-variant & interactive
+│     │
+│     ├─ data_io/                     # File & database I/O
+│     │  ├─ __init__.py               # I/O for seismic, magnetic, sonar
+│     │  ├─ magy_io.py                # Magnetic CSV/XLS/DB
+│     │  ├─ seismic_io.py             # SEG-Y (segyio) read/write
+│     │  └─ sonar_io.py               # Side-scan/sonar readers
+│     │
+│     ├─ ui/                          # PyQt6 UI surfaces
+│     │  ├─ __init__.py
+│     │  ├─ maggy_editor.py           # Magnetic table editor (SQLite-backed)
+│     │  ├─ seismic_editor.py         # Seismic editor
+│     │  ├─ sss_editor.py             # Side-scan sonar editor
+│     │  └─ ui.py                     # Shared widgets/dialogs
+│     │
+│     ├─ utils/                       # Cross-cutting helpers
+│     │  ├─ __init__.py
+│     │  └─ utils.py
+│     │
+│     ├─ visualization/               # Plotting/visual helpers
+│     │  ├─ __init__.py
+│     │  └─ plots.py
+│     │
+│     ├─ __init__.py
+│     ├─ app.py                       # Application entry point (launch GUI)
+```
+
+| Module                                  | Purpose                                                           |
+| --------------------------------------- | ----------------------------------------------------------------- |
+| `core/interpretation/interpretation.py` | Horizon picking, edge detection, and instantaneous attributes UI. |
+| `core/maps/{maps.py,grids.py}`          | Folium/Leaflet mapping, grid helpers.                             |
+| `core/navigation/navigation.py`         | Towfish & ship navigation parsing + SBP layback.                  |
+| `core/processing/sss_processing.py`     | Side-scan sonar processing routines.                              |
+| `core/processing/trace_analysis.py`     | FFT/inst. amplitude/phase/frequency, etc.                         |
+| `core/processing/trace_qc.py`           | QC utilities for traces.                                          |
+| `signals/deconvolution.py`              | Spiking, predictive, Wiener, sparse-spike deconvoltion.           |
+| `signals/filters.py`                    | IIR/FIR (Butter/Cheby), zero-phase, Fourier, wavelet.             |
+| `signals/gains.py`                      | AGC, TVG, constant gain.                                          |
+| `signals/mute.py`                       | Top/bottom/offset/time-variant + polygon mute.                    |
+| `data_io/seismic_io.py`                 | SEG-Y read/write (segyio).                                        |
+| `data_io/magy_io.py`                    | Magnetic CSV/XLS import/export to SQLite.                         |
+| `data_io/sonar_io.py`                   | Sonar/SSS readers/parsers.                                        |
+| `ui/seismic_editor.py`                  | Seismic editor window.                                            |
+| `ui/maggy_editor.py`                    | Magnetic editor window.                                           |
+| `ui/sss_editor.py`                      | Side-scan sonar editor window.                                    |
+| `visualization/plots.py`                | Matplotlib/pyqtgraph plotting helpers.                            |
+| `utils/utils.py`                        | Shared small utilities.                                           |
+| `app.py`                                | Core application launcher and project workspace management.       |
+
 
 ---
 
