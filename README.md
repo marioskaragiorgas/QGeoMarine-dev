@@ -238,16 +238,16 @@ QGeoMarineExampleProject/
 QGeoMarine offers a modular GUI for marine geophysical data workflows, including seismic, magnetic, and mapping tools:
 
 ### 🔹 Application Start & Navigation
-| Intro Screen | Project File Manager |
-|--------------|----------------------|
-| ![Intro](docs/screenshots/intro%20window.png) | ![Main](docs/screenshots/main%20window.png) |
+| Intro Screen | Project File Manager | Coordinate System Selection Dialog |
+|--------------|----------------------|------------------------------------|
+| ![Intro](docs/screenshots/intro%20window.png) | ![Main](docs/screenshots/main%20window.png) | ![CRS](docs/screenshots/coordinate_system_selection_dialog.png) |
 
 ---
 
 ### 🔹 Mapping and Project View
-| File Tree + Map | Context Menu |
-|------------------|--------------|
-| ![Map 1](docs/screenshots/Screenshot%201.png) | ![Map 2](docs/screenshots/Screenshot%202.png) |
+| File Tree + Map | Context Menu | Survey lines plotted in the Map |
+|-----------------|--------------|---------------------------------|
+| ![Map 1](docs/screenshots/Screenshot%201.png) | ![Map 2](docs/screenshots/Screenshot%202.png) | ![Survey lines](docs/screenshots/survey_lines_example.png) |
 
 ---
 
