@@ -202,7 +202,7 @@ QGeoMarine offers a modular GUI for marine geophysical data workflows, including
 |------------------------|--------|
 | ![Canny](docs/screenshots/seismic%20interpretation%201.png) | ![Sobel](docs/screenshots/seismic%20interpretation%202.png) |
 
-| Horizon Picking | Instantaneous Attributes |
+| Instantaneous Attributes | Horizon Picking  |
 |----------------|---------------------------|
 | ![Horizons](docs/screenshots/seismic%20interpretation.png) | ![InstAmp](docs/screenshots/seismic%20interpretation%203.png) |
 
