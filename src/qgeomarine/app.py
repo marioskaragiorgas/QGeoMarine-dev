@@ -31,9 +31,11 @@ import pyproj.database
 from qgeomarine.ui.ui import Ui_IntroWindow
 from qgeomarine.data_io.seismic_io import SEGY
 from qgeomarine.data_io.magy_io import MAGGY
-from qgeomarine.core.navigation.navigation import NavigationFromTowFish, NavigationFromShip, NavigationFromFile
+from qgeomarine.data_io.sonar_io import XTF
+from qgeomarine.core.navigation.navigation import NavigationFromShip, NavigationFromTowFish, NavigationFromFile
 from qgeomarine.ui.seismic_editor import SeismicEditor
 from qgeomarine.ui.maggy_editor import MaggyEditor
+from qgeomarine.ui.sss_editor import SSS_Editor
 from qgeomarine.core.maps.maps import MAPS
 
 import logging
@@ -446,6 +448,29 @@ class StreamRedirector:
         """Override the flush method to do nothing."""
         pass
 
+class SSSFileParseWorker(QtCore.QThread):
+    """
+    Worker thread to parse side scan sonar files without blocking the main UI thread.
+    Emits signals when parsing is finished or if an error occurs.
+    """
+    finished = QtCore.pyqtSignal(dict)
+    error = QtCore.pyqtSignal(str)
+
+    def __init__(self, file_path, db_file_path, bin_file_path):
+        super().__init__()
+        self.file_path = file_path
+        self.db_file_path = db_file_path
+        self.bin_file_path = bin_file_path
+
+    def run(self):
+        """Perform the file parsing in a separate thread."""
+        try:
+            sss_handler = XTF(db_file_path=self.db_file_path, bin_file_path=self.bin_file_path)
+            results = sss_handler.load_data_xtf_all_freqs(self.file_path)
+            self.finished.emit(results)
+        except Exception as e:
+            self.error.emit(str(e))
+         
 class QGeoMarine(QtWidgets.QMainWindow):
     """
     Main window for project operation.
@@ -508,27 +533,33 @@ class QGeoMarine(QtWidgets.QMainWindow):
         
         self.projectstate_file = os.path.join(self.project_data.get('folder_path'), 'Project', f"{self.project_data.get('project_name')}.project_state.json")  # File to store project state
         # Try loading previous session
-        self.load_project_state()
+        self.loaded_state = self.load_project_state()
+        
         
         # Initialize handlers
         self.segy_handler = SEGY(db_file_path=None, bin_file_path=None)
         self.mag_handler = MAGGY.CSV_TXT_XLS(mag_db_file_path=None, Line_column_name=None)
         self.map_handler = MAPS()
         
-        # Seismic & magnetic data structures
-        self.sbp_coords = None
-        self.data = None
-        self.segy_file = None
-        self.segy_files = {}
-        self.seismic_db_files = {}
-        self.active_seismic_lines = {}
-        self.mag_db = None
-        self.mag_files = {}
-        self.active_mag_lines = {}
-        
-        self.map = None
-        self.map_html = None
-        
+        # Initialize attributes to store data and state. Check if they exist from loaded state else initialize
+        self.sbp_coords = self.loaded_state.get('sbp_coords', None)
+        self.data = self.loaded_state.get('data', None)
+        self.segy_file = self.loaded_state.get('segy_file', None)
+        self.segy_files = self.loaded_state.get('segy_files', {})
+        self.seismic_db_files = self.loaded_state.get('seismic_db_files', {})
+        self.active_seismic_lines = self.loaded_state.get('active_seismic_lines', {})
+        self.mag_db = self.loaded_state.get('mag_db', None)
+        self.mag_files = self.loaded_state.get('mag_files', {})
+        self.active_mag_lines = self.loaded_state.get('active_mag_lines', {})
+        self.sss_db_files = self.loaded_state.get('sss_db_files', {})
+        self.sss_files = self.loaded_state.get('sss_files', {})
+        self.active_sss_lines = self.loaded_state.get('active_sss_lines', {})
+        self.map = self.loaded_state.get('map', None)
+        self.map_html = self.loaded_state.get('map_html', None)
+
+        # print loaded project data for debugging
+        print("Loaded previous session project data:", self.loaded_state)
+
         # UI Initialization
         self.init_ui()
         self.create_menus()
@@ -608,10 +639,21 @@ class QGeoMarine(QtWidgets.QMainWindow):
             if file.is_file() and file.name.endswith('.db'):
                 file_item = QtWidgets.QTreeWidgetItem(self.treeview_root_mag, [os.path.basename(file.path)])
                 file_item.setData(0, QtCore.Qt.ItemDataRole.UserRole, file.path)
-        
+
         self.treeview_root_mag.setExpanded(True)
+        
         self.treeview_root_sss =QtWidgets.QTreeWidgetItem(self.treeview, ["Side Scan Sonar Files"])
+
+        # Add each .db file as a child of the "Side Scan Sonar Files" root
+        # Get sss files ending with .db
+        sss_files_path = os.path.join(self.project_data.get('folder_path'), 'sonar')
+        for file in os.scandir(sss_files_path):
+            if file.is_file() and file.name.endswith('.db'):
+                file_item = QtWidgets.QTreeWidgetItem(self.treeview_root_sss, [os.path.basename(file.path)])
+                file_item.setData(0, QtCore.Qt.ItemDataRole.UserRole, file.path)
+
         self.treeview_root_sss.setExpanded(True)
+
         self.treeview_root_maps = QtWidgets.QTreeWidgetItem(self.treeview, ["Maps"])
         self.treeview_root_maps.setExpanded(True)
         self.treeview_root_lines = QtWidgets.QTreeWidgetItem(self.treeview, ["Survey Lines"])
@@ -673,12 +715,19 @@ class QGeoMarine(QtWidgets.QMainWindow):
         mag_file_submenu.addAction(self.create_action("Export Data", self.save_processed_mag))
         #mag_file_submenu.addAction(self.create_action("Close all", self.close_segy))
         
+        sonar_file_submenu = file_menu.addMenu("Sonar Files...")
+        sonar_file_submenu.addAction(self.create_action("Import Side Scan Sonar Data", self.import_sss_data))
+        #sonar_file_submenu.addAction(self.create_action("Export Data", self.save_processed_sss))
+        #sonar_file_submenu.addAction(self.create_action("Close all", self.close_sss))
 
         seismic_edit_menu = self.menu_bar.addMenu("Seismic Editor")
         seismic_edit_menu.addAction(self.create_action("Open segy file in seismic editor...", self.seismic_editor))
 
         maggy_edit_menu = self.menu_bar.addMenu("Magnetic Editor")
         maggy_edit_menu.addAction(self.create_action("Open maggy file in magnetic editor...", self.maggy_editor))
+
+        sonar_edit_menu = self.menu_bar.addMenu("Side Scan Sonar Editor")
+        sonar_edit_menu.addAction(self.create_action("Open sonar file in side scan sonar editor...", self.sss_editor))
 
         viewMenu = self.menu_bar.addMenu("View")
         viewStatAct = QtGui.QAction("View statusbar", self, checkable=True)
@@ -728,6 +777,9 @@ class QGeoMarine(QtWidgets.QMainWindow):
                 "active_seismic_lines": self.active_seismic_lines,
                 "mag_files": self.mag_files,
                 "active_mag_lines": self.active_mag_lines,
+                "sss_files": self.sss_files,
+                "sss_db_files": self.sss_db_files if hasattr(self, 'sss_db_files') else {},
+                "active_sss_lines": self.active_sss_lines if hasattr(self, 'active_sss_lines') else {},
                 "map_html": self.map_html,
                 "sbp_coords": self.sbp_coords
             }
@@ -745,15 +797,12 @@ class QGeoMarine(QtWidgets.QMainWindow):
         if os.path.exists(self.projectstate_file):
             try:
                 with open(self.projectstate_file, "r") as file:
-                    saved_state = json.load(file)
-                    self.seismic_db_files = saved_state.get("seismic_db_files", {})
-                    self.active_seismic_lines = saved_state.get("active_seismic_lines", {})
-                    self.mag_files = saved_state.get("mag_files", {})
-                    self.active_mag_lines = saved_state.get("active_mag_lines", {})
-                    self.map_html = saved_state.get("map_html", None)
-                    self.sbp_coords = saved_state.get("sbp_coords", None)
+                    proj_state = json.load(file)
 
+                
                 print("Project state loaded successfully.")
+                print(f"Loaded project state: {proj_state}")
+                return proj_state
             except Exception as e:
                 print(f"Error loading project state: {e}")
 
@@ -947,6 +996,25 @@ class QGeoMarine(QtWidgets.QMainWindow):
             logging.error(f"Failed to load MAG file: {e}")
             self.show_error("Error", f"Failed to load MAG file: {e}")
             
+    @pyqtSlot()
+    def import_sss_data(self):
+        """
+        Import side scan sonar data from files.
+        The user can select multiple files to import.
+        """
+        # Open file dialog to select side scan sonar files
+        file_paths, _ = QtWidgets.QFileDialog.getOpenFileNames(self, "Import Side Scan Sonar Data", "", "Sonar Files (*.slc *.s7k *.xtf *.all *.wlf *.sdf);;All Files (*)")
+        if not file_paths:
+            return
+        
+        try:
+            for file_path in file_paths:
+                self.load_sss_file(file_path)
+        except Exception as e:
+                self.statusbar.showMessage(f"Error loading data: {e}")
+                logging.error(f"Failed to load Side Scan Sonar file: {e}")
+                self.show_error("Error", f"Failed to load Side Scan Sonar file: {e}")
+    
     @pyqtSlot()
     def import_raster(self):
         """ 
@@ -1154,6 +1222,67 @@ class QGeoMarine(QtWidgets.QMainWindow):
             self.statusbar.showMessage(f"Error loading file {file_path}: {e}")
             logging.error(f"Failed to load MAG file {file_path}: {e}")
 
+    def load_sss_file(self, file_path):
+        """
+        Load a side scan sonar file using the SSS handler.
+        The side scan sonar data is processed and stored in a database file.
+        The user can select multiple side scan sonar files to import.
+        """
+        db_filepath = os.path.join(self.project_data.get('folder_path'), 'sonar', os.path.basename(file_path)[:-4] + '.db')
+        bin_filepath = os.path.join(self.project_data.get('folder_path'), 'sonar', os.path.basename(file_path)[:-4] + '.bin')
+        print(f"Sonar binary file path is: {bin_filepath}")
+
+        if os.path.exists(db_filepath):
+            os.remove(db_filepath)  # Deletes the existing database file
+
+        try:
+            # Create the worker
+            self.sss_worker = SSSFileParseWorker(
+                file_path=file_path,
+                db_file_path=db_filepath,
+                bin_file_path=bin_filepath
+            )
+
+            # Connect worker signals to handlers
+            self.sss_worker.finished.connect(lambda results: self.on_sss_finished(file_path, db_filepath, bin_filepath, results))
+            self.sss_worker.error.connect(self.on_sss_error)
+
+            # Start the worker thread
+            self.sss_worker.start()
+            self.statusbar.showMessage(f"Parsing Side Scan Sonar data from {file_path}...")
+
+        except Exception as e:
+            self.statusbar.showMessage(f"Error loading file {file_path}: {e}")
+            logging.error(f"Failed to load Side Scan Sonar file {file_path}: {e}")
+
+    @QtCore.pyqtSlot(dict)
+    def on_sss_finished(self, file_path, db_filepath, bin_filepath, results):
+        """Handle completion of the SSS file parsing."""
+        print(f"Finished parsing {file_path}. Results:", results)
+
+        # Store results in your structure
+        self.sss_files[file_path] = {
+            "db_path": db_filepath,
+            "bin_base": bin_filepath,
+            "frequencies": results  # this dict comes from XTF.load_data_xtf_all_freqs()
+        }
+
+        self.sss_db_files[db_filepath] = {
+            "db_path": db_filepath,
+            "bin_base": bin_filepath,
+            "frequencies": results
+        }
+
+        self.statusbar.showMessage(f"Loaded Side Scan Sonar data from {file_path}")
+        QtWidgets.QMessageBox.information(self, "Data Loaded", f"Loaded Side Scan Sonar data from {file_path}.")
+        self.update_treeview(file_path=file_path, db_filepath=db_filepath, n_samples=None, filetype='sss')
+
+    @QtCore.pyqtSlot(str)
+    def on_sss_error(self, error_message):
+        """Handle any error emitted by the SSS worker."""
+        self.statusbar.showMessage(f"SSS Parsing Error: {error_message}")
+        QtWidgets.QMessageBox.critical(self, "SSS Parsing Error", error_message)
+        
     def load_raster(self, file_path):
         """
         Load a raster file for maps using the map handler.
@@ -1240,8 +1369,36 @@ class QGeoMarine(QtWidgets.QMainWindow):
             file_item.setText(0, os.path.basename(db_filepath))
             file_item.setData(0, QtCore.Qt.ItemDataRole.UserRole, db_filepath)
 
-        # Map files 
-        else :
+        # Sonar files (Side Scan Sonar)
+        elif filetype == 'sss':
+            file_item = QtWidgets.QTreeWidgetItem(self.treeview_root_sss)
+            file_item.setText(0, os.path.basename(db_filepath))
+            file_item.setData(0, QtCore.Qt.ItemDataRole.UserRole, db_filepath)
+
+            # Get the frequencies dictionary
+            sss_info = self.sss_files.get(file_path, {})
+            freq_info = sss_info.get("frequencies", {})
+
+            if not freq_info:
+                QtWidgets.QTreeWidgetItem(file_item, ["No frequency data found"])
+            else:
+                for freq, info in freq_info.items():
+                    freq_item = QtWidgets.QTreeWidgetItem(file_item)
+                    freq_item.setText(0, f"Frequency: {freq} kHz")
+
+                    n_pings = info.get("n_pings", "N/A")
+                    n_samples = info.get("n_samples", "N/A")
+                    dt = info.get("dt_median", "N/A")
+
+                    QtWidgets.QTreeWidgetItem(freq_item, [f"Number of Pings: {n_pings}"])
+                    QtWidgets.QTreeWidgetItem(freq_item, [f"Samples per Ping: {n_samples}"])
+                    QtWidgets.QTreeWidgetItem(freq_item, [f"Sample Interval: {dt} s"])
+                    QtWidgets.QTreeWidgetItem(freq_item, [f"Bin Path: {info.get('bin_path', 'N/A')}"])
+                    QtWidgets.QTreeWidgetItem(freq_item, [f"Data Type: {info.get('dtype', 'N/A')}"])
+                    QtWidgets.QTreeWidgetItem(freq_item, [f"Layout: {info.get('layout', 'N/A')}"])
+
+        # Map files
+        else:
             file_item = QtWidgets.QTreeWidgetItem(self.treeview_root_maps)
             file_item.setText(0, os.path.basename(file_path))
             file_item.setData(0, QtCore.Qt.ItemDataRole.UserRole, file_path)
@@ -1263,6 +1420,8 @@ class QGeoMarine(QtWidgets.QMainWindow):
             create_and_show_menu(self.treeview, "Seismic")
         elif item.parent() == self.treeview_root_mag:
             create_and_show_menu(self.treeview, "Magnetic")
+        elif item.parent() == self.treeview_root_sss:
+            create_and_show_menu(self.treeview, "Side Scan Sonar")
         elif item.parent() == self.treeview_root_maps:
             create_and_show_menu(self.treeview, "Map")
 
@@ -1284,6 +1443,26 @@ class QGeoMarine(QtWidgets.QMainWindow):
             if file_path:
                 self.mag_edit = MaggyEditor(maggy_file_path=None, db_file_path=file_path, project_data =self.project_data)
                 self.mag_edit.show()
+
+        elif item.parent() == self.treeview_root_sss:
+            file_path = item.data(0, QtCore.Qt.ItemDataRole.UserRole)
+            if file_path:
+                # create a dialog to choose frequency
+                dialog = QtWidgets.QDialog(self)
+                dialog.setWindowTitle("Select SSS Frequency Channel")  
+                layout = QtWidgets.QVBoxLayout(dialog)
+                layout.addWidget(QtWidgets.QLabel("Select Frequency Channel KHz:"))
+                self.freq_combo_box = QtWidgets.QComboBox()
+                freqs = list(self.sss_db_files[file_path]["frequencies"].keys())
+                self.freq_combo_box.addItems(freqs)
+                layout.addWidget(self.freq_combo_box)  
+                dialog.setLayout(layout)
+                dialog.exec()
+                selected_freq = self.freq_combo_box.currentText()
+                self.sss_edit = SSS_Editor(db_file_path=file_path, frequency=selected_freq)
+                self.sss_edit.show()
+            else:
+                QtWidgets.QMessageBox.warning(self, "File Error", "No valid file selected.")
 
     def close_file(self, item):
         """
@@ -1476,7 +1655,18 @@ class QGeoMarine(QtWidgets.QMainWindow):
             self.mag_edit = MaggyEditor(mag_filepath, db_file_path=None, project_data = self.project_data)
         self.mag_edit.show()
 
+    @pyqtSlot()
+    def sss_editor(self, sss_filepath=None):
+        """
+        Open the Side Scan Sonar Editor to view and edit sonar data.
+        If the editor is already open, it brings it to the front.
+        If no sonar file is provided, it opens the editor with a default file.
+        """
 
+        if not hasattr(self, 'SSS Editor') or self.sss_edit is None:
+            self.sss_edit = SSS_Editor(sss_filepath, db_file_path=None, frequency=None)
+        self.sss_edit.show()
+        
 def main() -> int:
     """Entry point used by the console script."""
     app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
