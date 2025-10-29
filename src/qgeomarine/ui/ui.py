@@ -1999,3 +1999,129 @@ class Maggy_editor_UI(object):
     def retranslateUi(self, MaggyEditor):
         """Set the text for all UI elements."""
         MaggyEditor.setWindowTitle("Maggy Editor")
+        
+class SSSonar_Editor_UI(object):
+
+    """
+    SSSonar_Editor_UI
+    This class sets up the UI for the SSSonar Editor, which includes a table for sonar data,
+    a tree view for loaded files, and docks for data visualization and analysis.
+    It also includes a menu bar for data analysis options and a status bar for messages.
+    """
+
+    def setupUI(self, SSSonarEditor):
+        """
+        Set up the main UI layout for the SSSonar Editor.
+        Args:
+            SSSonarEditor (QMainWindow): The main window instance to set up.
+        """
+        # Main Window Setup
+        SSSonarEditor.setObjectName("SSSonar Editor")
+        SSSonarEditor.resize(1200, 800)  # Increase size for better layout
+
+        # Central Widget
+        self.centralwidget = QtWidgets.QWidget(SSSonarEditor)
+        SSSonarEditor.setCentralWidget(self.centralwidget)
+        main_layout = QtWidgets.QVBoxLayout(self.centralwidget)
+
+
+        # === Data Table ===
+        #self.dataTable = QtWidgets.QTableWidget()
+        #main_layout.addWidget(self.dataTable)
+
+        # === Side scan sonar waterfall plot wigdet in the central area ===
+        self.plot = QtWidgets.QWidget()
+        main_layout.addWidget(self.plot)
+
+        # Add a Pyqtgraph PlotWidget to the placeholder widget
+        self.plotWidget = pg.GraphicsLayoutWidget(show=True)
+        self.plotWidget.resize(1000, 600)
+        self.plotWidget.setBackground("w")
+
+        self.plot.setLayout(QtWidgets.QVBoxLayout())
+        self.plot.layout().addWidget(self.plotWidget)
+
+        # === TreeView Dock (Moved to a DockWidget) ===
+        self.treeDock = QtWidgets.QDockWidget("Loaded Files", SSSonarEditor)
+        self.treeDock.setAllowedAreas(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea | QtCore.Qt.DockWidgetArea.RightDockWidgetArea)
+        self.treeDock.setFeatures(QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetMovable | QtWidgets.QDockWidget.DockWidgetFeature.DockWidgetFloatable)
+        self.treeDock.setMinimumWidth(150)  # Make the dock smaller
+        self.treeDock.setMaximumWidth(250)
+
+        # TreeView inside Dock
+        self.treeview = QtWidgets.QTreeWidget()
+        self.treeview.setHeaderLabel("Loaded Files")
+        root = QtWidgets.QTreeWidgetItem(["Loaded Files"])
+        self.treeview.addTopLevelItem(root)
+        self.treeDock.setWidget(self.treeview)  # Attach to Dock
+        # Add TreeView Dock to Main Window
+        SSSonarEditor.addDockWidget(QtCore.Qt.DockWidgetArea.LeftDockWidgetArea, self.treeDock)
+
+        # Menu Bar
+        self.menuBar = QtWidgets.QMenuBar(SSSonarEditor)
+        SSSonarEditor.setMenuBar(self.menuBar)
+
+        self.processingMenu = QtWidgets.QMenu("Processing", self.menuBar)
+        self.menuBar.addMenu(self.processingMenu)
+        self.bottomtracksubmenu = QtWidgets.QMenu("Bottom Track", self.processingMenu)
+        self.processingMenu.addMenu(self.bottomtracksubmenu)
+        self.bt_auto_action = self.bottomtracksubmenu.addAction("Auto Bottom Track")
+        #self.bt_auto_action.triggered.connect(SSSonarEditor.auto_bottom_track)
+        self.bt_manual_action = self.bottomtracksubmenu.addAction("Manual Bottom Track")
+        self.bt_clear_action = self.bottomtracksubmenu.addAction("Clear Bottom Track")
+        self.slant_range_correction_action = self.processingMenu.addAction("Slant Range Correction")
+        #self.bt_clear_action.triggered.connect(SSSonarEditor.clear_bottom_track)
+
+        self.viewMenu = self.menuBar.addMenu("View Options")
+        # Add a separator between the two submenus
+        self.rawmenu = self.viewMenu.addMenu("Raw Waterfall View")
+        self.view_raw_split_action = self.rawmenu.addAction("Split (Port / Starboard)")
+        self.view_raw_stitched_action = self.rawmenu.addAction("Stitched Waterfall")
+        
+        """
+        self.view_raw_split_action.setCheckable(True)
+        self.view_raw_stitched_action.setCheckable(True)
+        self.view_raw_split_action.setChecked(True)  # default
+        """
+
+        self.processedmenu = self.viewMenu.addMenu("Processed Waterfall View")
+        self.view_split_action = self.processedmenu.addAction("Split (Port / Starboard)")
+        self.view_stitched_action = self.processedmenu.addAction("Stitched Waterfall")
+        """
+        self.view_split_action.setCheckable(True)
+        self.view_stitched_action.setCheckable(True)
+        self.view_split_action.setChecked(False)  # default
+        self.view_stitched_action.setChecked(False)  # default
+        """
+
+
+        # Create a Button Group to make actions exclusive
+        """
+        self.view_button_group = QtWidgets.QButtonGroup(SSSonarEditor)
+        self.view_button_group.addButton(self.view_split_action)
+        self.view_button_group.addButton(self.view_stitched_action)
+        self.view_split_action.triggered.connect(SSSonarEditor.show_split_view)
+        self.view_stitched_action.triggered.connect(SSSonarEditor.show_stitched_view)
+        self.bottomtrack_button_group = QtWidgets.QButtonGroup(SSSonarEditor)
+        self.bottomtrack_button_group.addButton(self.bt_auto_action)
+        self.bottomtrack_button_group.addButton(self.bt_manual_action)
+        self.bottomtrack_button_group.addButton(self.bt_clear_action)
+        self.bottomtrack_button_group.addButton(self.slant_range_correction_action)
+        self.bt_auto_action.triggered.connect(SSSonarEditor.auto_bottom_track)
+        self.bt_manual_action.triggered.connect(SSSonarEditor.manual_bottom_track)
+        self.bt_clear_action.triggered.connect(SSSonarEditor.clear_bottom_track)
+        self.slant_range_correction_action.triggered.connect(SSSonarEditor.slant_range_correction)
+        """
+        # === Status Bar ===
+        self.statusBar = QtWidgets.QStatusBar(SSSonarEditor)
+        SSSonarEditor.setStatusBar(self.statusBar)
+        self.statusBar.showMessage("Ready")
+
+    # Retranslate UI
+    def retranslateUi(self, SSSonarEditor):
+        """
+        Set the text for all UI elements.
+        Args:
+            SSSonarEditor (QMainWindow): The main window instance.
+        """
+        SSSonarEditor.setWindowTitle("SSSonar Editor")
