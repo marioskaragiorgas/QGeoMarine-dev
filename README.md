@@ -260,19 +260,26 @@ QGeoMarine offers a modular GUI for marine geophysical data workflows, including
 
 ### 🔹 Seismic Interpretation
 | Edge Detection – Canny | Sobel |
-|------------------------|--------|
+|------------------------|-------|
 | ![Canny](docs/screenshots/seismic%20interpretation%201.png) | ![Sobel](docs/screenshots/seismic%20interpretation%202.png) |
 
 | Instantaneous Attributes | Horizon Picking  |
-|----------------|---------------------------|
+|----------------|----------------------------|
 | ![Horizons](docs/screenshots/seismic%20interpretation.png) | ![InstAmp](docs/screenshots/seismic%20interpretation%203.png) |
 
 ---
 
 ### 🔹 Magnetic Editor
 | SQL Channel Math | Table & Chart | Grids |
-|------------------|----------------|-------|
+|------------------|---------------|-------|
 | ![Math](docs/screenshots/channe%3B%20math.png) | ![Table](docs/screenshots/magnetic%20editor.png) | ![Gridding Data Window](docs/screenshots/Grid_Mag_window.png) |
+
+---
+
+### 🔹 Side Scan Sonar Edirot
+| SSS Waterfall Plot | Bottom Tracking |
+|--------------------|-----------------|
+| ![SSSwaterfallview](docs/screenshots/sss_waterfall.png) | ![BottomTrack](docs/screenshots/Bottom%20Track.png) |
 
 ---
 
