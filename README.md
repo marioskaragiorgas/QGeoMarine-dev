@@ -270,8 +270,8 @@ QGeoMarine offers a modular GUI for marine geophysical data workflows, including
 ---
 
 ### 🔹 Magnetic Editor
-| SQL Channel Math | Table & Chart |
-|------------------|----------------|
+| SQL Channel Math | Table & Chart | Grids |
+|------------------|----------------|-------|
 | ![Math](docs/screenshots/channe%3B%20math.png) | ![Table](docs/screenshots/magnetic%20editor.png) | ![Gridding Data Window](docs/screenshots/Grid_Mag_window.png) |
 
 ---
