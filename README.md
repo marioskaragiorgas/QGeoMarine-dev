@@ -4,7 +4,6 @@
 🚧 *This project is currently under active development.*
 
 ![Python](https://img.shields.io/badge/python-3.11-blue)
-![License](https://img.shields.io/badge/license-GPLv3-blue)
 ![Status](https://img.shields.io/badge/status-beta-yellow)
 ![License](https://img.shields.io/badge/license-beta--restricted-lightgrey)
 
