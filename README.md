@@ -161,7 +161,7 @@ Future releases of **QGeoMarine** will integrate machine learning models to enha
 ## 🔧 Installation in developement/editable mode 
 
 ```bash
-git clone https://github.com/marioskaragiorgas/qgeomarine.git
+git clone https://github.com/marioskaragiorgas/Qgeomarine-dev.git
 cd qgeomarine
 pip install -e .
 ```
